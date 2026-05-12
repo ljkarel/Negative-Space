@@ -15,7 +15,7 @@ namespace IVLab.MinVR3
         public void SetBrushColor(Color c)
         {
             m_BrushColor = c;
-            if (!m_EraserModeActive)
+            if (m_CurrentTool == ToolMode.Paint)
             {
                 m_BrushCursorMeshRenderer.sharedMaterial.color = c;
             }
@@ -26,15 +26,33 @@ namespace IVLab.MinVR3
             SetBrushColor(new Color(c[0], c[1], c[2], c[3]));
         }
 
-        public void ToggleEraserMode()
+        public void CycleToolMode()
         {
-            m_EraserModeActive = !m_EraserModeActive;
-            if (m_EraserModeActive) {
-                m_SavedBrushCursorMaterial = m_BrushCursorMeshRenderer.sharedMaterial;
-                m_BrushCursorMeshRenderer.sharedMaterial = m_EraserCursorMaterial;
-            } else {
-                m_BrushCursorMeshRenderer.sharedMaterial = m_SavedBrushCursorMaterial;
-                m_SavedBrushCursorMaterial.color = m_BrushColor; // sync color in case it changed while erasing
+            m_CurrentTool = (ToolMode)(((int)m_CurrentTool + 1) % 3);
+            ApplyToolMode();
+        }
+
+        private void ApplyToolMode()
+        {
+            switch (m_CurrentTool)
+            {
+                case ToolMode.Paint:
+                    ClearWandState();
+                    m_BrushCursorMeshRenderer.enabled = true;
+                    m_BrushCursorMeshRenderer.sharedMaterial = m_SavedBrushCursorMaterial;
+                    m_BrushCursorMeshRenderer.sharedMaterial.color = m_BrushColor;
+                    m_WandMeshRenderer.enabled = false;
+                    break;
+                case ToolMode.Eraser:
+                    ClearWandState();
+                    m_BrushCursorMeshRenderer.enabled = true;
+                    m_BrushCursorMeshRenderer.sharedMaterial = m_EraserCursorMaterial;
+                    m_WandMeshRenderer.enabled = false;
+                    break;
+                case ToolMode.EraserWand:
+                    m_BrushCursorMeshRenderer.enabled = false;
+                    m_WandMeshRenderer.enabled = true;
+                    break;
             }
         }
 
@@ -66,6 +84,31 @@ namespace IVLab.MinVR3
             m_RedoStack.Clear();
         }
 
+        private void Update()
+        {
+            if (m_CurrentTool != ToolMode.EraserWand || m_WandPoints.Count == 0) return;
+
+            // Keep the preview line showing the full outline so far, plus a live edge to the tip.
+            if (m_WandPreviewLine is not null)
+            {
+                m_WandPreviewLine.positionCount = m_WandPoints.Count + 1;
+                for (int i = 0; i < m_WandPoints.Count; i++)
+                    m_WandPreviewLine.SetPosition(i, m_WandPoints[i]);
+                m_WandPreviewLine.SetPosition(m_WandPoints.Count, m_WandTipTransform.position);
+            }
+
+            // Once 2+ dots are placed, check if the tip is near the first dot to allow closing.
+            bool nearClose = m_WandPoints.Count >= 2 &&
+                Vector3.Distance(m_WandTipTransform.position, m_WandPoints[0]) < m_WandCloseThreshold;
+
+            if (nearClose != m_WandNearClose)
+            {
+                m_WandNearClose = nearClose;
+                m_WandDotObjects[0].GetComponent<MeshRenderer>().sharedMaterial =
+                    m_WandNearClose ? m_WandCloseHighlightMat : m_EraserCursorMaterial;
+            }
+        }
+
         private void Reset()
         {
             m_ArtworkParentTransform = null;
@@ -82,7 +125,14 @@ namespace IVLab.MinVR3
             Debug.Assert(m_PaintMaterial != null);
             Debug.Assert(m_EraserMaterial != null);
             Debug.Assert(m_EraserCursorMaterial != null);
+            Debug.Assert(m_WandMeshRenderer != null);
+            Debug.Assert(m_WandTipTransform != null);
 
+            m_SavedBrushCursorMaterial = m_BrushCursorMeshRenderer.sharedMaterial;
+            m_WandMeshRenderer.sharedMaterial = m_EraserCursorMaterial;
+            m_WandMeshRenderer.enabled = false;
+            m_WandCloseHighlightMat = new Material(m_EraserCursorMaterial);
+            m_WandCloseHighlightMat.SetColor("_GlowColor", Color.white);
             m_NumStrokes = 0;
         }
 
@@ -91,6 +141,22 @@ namespace IVLab.MinVR3
 
         public void Painting_OnEnter()
         {
+            if (m_CurrentTool == ToolMode.EraserWand)
+            {
+                if (m_WandNearClose)
+                {
+                    CreateEraserPolygon();
+                    ClearWandState();
+                }
+                else
+                {
+                    m_WandPoints.Add(m_WandTipTransform.position);
+                    PlaceWandDot(m_WandTipTransform.position);
+                    EnsureWandPreviewLine();
+                }
+                return;
+            }
+
             // create a new GameObject to hold the new paint stroke
             m_CurrentStrokeObj = new GameObject("Stroke " + m_NumStrokes);
             m_CurrentStrokeObj.transform.SetParent(m_ArtworkParentTransform, false);
@@ -103,7 +169,7 @@ namespace IVLab.MinVR3
             frontMeshObj.transform.SetParent(m_CurrentStrokeObj.transform, false);
             MeshRenderer frontMeshRenderer = frontMeshObj.GetComponent<MeshRenderer>();
             Material strokeMaterial;
-            if (m_EraserModeActive) {
+            if (m_CurrentTool == ToolMode.Eraser) {
                 strokeMaterial = m_EraserMaterial; // shared instance -- no per-stroke properties needed
             } else {
                 strokeMaterial = new Material(m_PaintMaterial);
@@ -127,6 +193,8 @@ namespace IVLab.MinVR3
 
         public void Painting_OnUpdate()
         {
+            if (m_CurrentTool == ToolMode.EraserWand) return;
+
             // find the points at the left edge and right edge of the brush bristles.  In the raw CavePainting brush
             // model, these vertices are at (-0.5, 0, 0) and (0.5, 0, 0)
             Vector3 leftBrushPtWorld = m_BrushCursorTransform.LocalPointToWorldSpace(new Vector3(-0.5f, 0, 0));
@@ -205,6 +273,7 @@ namespace IVLab.MinVR3
 
         public void Painting_OnExit()
         {
+            if (m_CurrentTool == ToolMode.EraserWand) return;
             PushUndo(new StrokeRecord(m_CurrentStrokeObj));
             m_NumStrokes++;
         }
@@ -286,16 +355,33 @@ namespace IVLab.MinVR3
         [Tooltip("Glow material applied to the brush cursor while in eraser mode.")]
         [SerializeField] private Material m_EraserCursorMaterial;
 
+        [Tooltip("Mesh renderer for the wand cylinder shown in eraser-wand mode.")]
+        [SerializeField] private MeshRenderer m_WandMeshRenderer;
+        [Tooltip("Empty transform at the tip of the wand used to read the tip position.")]
+        [SerializeField] private Transform m_WandTipTransform;
+
+        [Tooltip("World-space radius within which the wand tip snaps to the first dot to close the shape.")]
+        [SerializeField] private float m_WandCloseThreshold = 0.05f;
+
         [Tooltip("The current brush color.")]
         [SerializeField] private Color m_BrushColor;
 
 
         // runtime only
 
-        // for eraser mode
-        private bool m_EraserModeActive = false;
+        // for tool mode
+        private ToolMode m_CurrentTool = ToolMode.Paint;
         private bool m_EraserStrokesVisible = false;
         private Material m_SavedBrushCursorMaterial;
+
+        // for eraser wand
+        private readonly List<Vector3> m_WandPoints = new List<Vector3>();
+        private readonly List<GameObject> m_WandDotObjects = new List<GameObject>();
+        private LineRenderer m_WandPreviewLine;
+        private Material m_WandCloseHighlightMat;
+        private bool m_WandNearClose = false;
+
+        public Vector3 WandTipPosition => m_WandTipTransform.position;
 
         // for painting ribbon strokes
         private int m_NumStrokes;
@@ -318,6 +404,96 @@ namespace IVLab.MinVR3
         private readonly Stack<IUndoable> m_UndoStack = new Stack<IUndoable>();
         private readonly Stack<IUndoable> m_RedoStack = new Stack<IUndoable>();
         private TransformSnapshot m_ArtworkSnapshotBefore;
+
+
+        // ERASER WAND HELPERS
+
+        private void PlaceWandDot(Vector3 worldPos)
+        {
+            var dot = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            dot.transform.SetParent(m_ArtworkParentTransform, true);
+            dot.transform.position = worldPos;
+            dot.transform.localScale = Vector3.one * 0.02f;
+            dot.GetComponent<MeshRenderer>().sharedMaterial = m_EraserCursorMaterial;
+            Destroy(dot.GetComponent<SphereCollider>());
+            m_WandDotObjects.Add(dot);
+        }
+
+        private void EnsureWandPreviewLine()
+        {
+            if (m_WandPreviewLine == null)
+            {
+                var lineObj = new GameObject("WandPreviewLine");
+                lineObj.transform.SetParent(transform, false);
+                m_WandPreviewLine = lineObj.AddComponent<LineRenderer>();
+                m_WandPreviewLine.material = m_EraserCursorMaterial;
+                m_WandPreviewLine.startWidth = 0.003f;
+                m_WandPreviewLine.endWidth = 0.003f;
+                m_WandPreviewLine.positionCount = 2;
+                m_WandPreviewLine.useWorldSpace = true;
+                m_WandPreviewLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                m_WandPreviewLine.receiveShadows = false;
+            }
+            m_WandPreviewLine.enabled = true;
+        }
+
+        private void CreateEraserPolygon()
+        {
+            var polyObj = new GameObject("EraserPolygon " + m_NumStrokes);
+            polyObj.transform.SetParent(m_ArtworkParentTransform, false);
+
+            Vector3[] verts = new Vector3[m_WandPoints.Count];
+            for (int i = 0; i < m_WandPoints.Count; i++)
+                verts[i] = polyObj.transform.InverseTransformPoint(m_WandPoints[i]);
+
+            // Fan triangulation from vertex 0: works correctly for convex polygons.
+            int triCount = m_WandPoints.Count - 2;
+            int[] frontTris = new int[triCount * 3];
+            int[] backTris  = new int[triCount * 3];
+            for (int i = 0; i < triCount; i++)
+            {
+                frontTris[i * 3]     = 0;
+                frontTris[i * 3 + 1] = i + 1;
+                frontTris[i * 3 + 2] = i + 2;
+                backTris[i * 3]      = 0;
+                backTris[i * 3 + 1]  = i + 2;
+                backTris[i * 3 + 2]  = i + 1;
+            }
+
+            BuildPolygonMesh(polyObj, "FrontMesh", verts, frontTris);
+            BuildPolygonMesh(polyObj, "BackMesh",  verts, backTris);
+
+            PushUndo(new StrokeRecord(polyObj));
+            m_NumStrokes++;
+        }
+
+        private void BuildPolygonMesh(GameObject parent, string name, Vector3[] verts, int[] tris)
+        {
+            var obj = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
+            obj.transform.SetParent(parent.transform, false);
+            obj.GetComponent<MeshRenderer>().sharedMaterial = m_EraserMaterial;
+            var mesh = obj.GetComponent<MeshFilter>().mesh;
+            mesh.vertices  = verts;
+            mesh.triangles = tris;
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+        }
+
+        private void ClearWandState()
+        {
+            m_WandNearClose = false;
+            m_WandPoints.Clear();
+            foreach (var dot in m_WandDotObjects)
+                Destroy(dot);
+            m_WandDotObjects.Clear();
+            if (m_WandPreviewLine is not null)
+                m_WandPreviewLine.enabled = false;
+        }
+
+
+        // TYPES
+
+        private enum ToolMode { Paint, Eraser, EraserWand }
 
 
         // UNDO/REDO TYPES
