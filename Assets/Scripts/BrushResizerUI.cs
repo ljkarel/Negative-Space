@@ -21,10 +21,9 @@ public class BrushResizerUI : MonoBehaviour
         float deltaScale = curSpan.magnitude / lastSpan.magnitude;
         brushCursor.transform.ScaleAroundLocalOrigin(deltaScale);
 
-        // clamp to make sure the brush never gets so small it disappears
         Vector3 s = brushCursor.transform.localScale;
         s.x = Mathf.Clamp(s.x, minBrushScale, maxBrushScale);
-        s.y = Mathf.Clamp(s.y, minBrushScale, maxBrushScale);
+        s.y = Mathf.Clamp(s.y, minBrushScale, m_InitialBrushScaleY);
         s.z = Mathf.Clamp(s.z, minBrushScale, maxBrushScale);
         brushCursor.transform.localScale = s;
 
@@ -37,6 +36,12 @@ public class BrushResizerUI : MonoBehaviour
     public float minBrushScale = 0.01f;
     public float maxBrushScale = 0.5f;
 
+    private float m_InitialBrushScaleY;
     private Vector3 m_LastBrushPos;
     private Vector3 m_LastHandPos;
+
+    private void Start()
+    {
+        m_InitialBrushScaleY = brushCursor.transform.localScale.y;
+    }
 }
