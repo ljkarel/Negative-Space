@@ -15,12 +15,33 @@ namespace IVLab.MinVR3
         public void SetBrushColor(Color c)
         {
             m_BrushColor = c;
-            m_BrushCursorMeshRenderer.sharedMaterial.color = c;
+            if (!m_EraserModeActive)
+            {
+                m_BrushCursorMeshRenderer.sharedMaterial.color = c;
+            }
         }
 
         public void SetBrushColor(Vector4 c)
         {
             SetBrushColor(new Color(c[0], c[1], c[2], c[3]));
+        }
+
+        public void ToggleEraserMode()
+        {
+            m_EraserModeActive = !m_EraserModeActive;
+            if (m_EraserModeActive) {
+                m_SavedBrushCursorMaterial = m_BrushCursorMeshRenderer.sharedMaterial;
+                m_BrushCursorMeshRenderer.sharedMaterial = m_EraserCursorMaterial;
+            } else {
+                m_BrushCursorMeshRenderer.sharedMaterial = m_SavedBrushCursorMaterial;
+                m_SavedBrushCursorMaterial.color = m_BrushColor; // sync color in case it changed while erasing
+            }
+        }
+
+        public void ToggleEraserStrokeVisibility()
+        {
+            m_EraserStrokesVisible = !m_EraserStrokesVisible;
+            m_EraserMaterial.SetFloat("_ShowVisible", m_EraserStrokesVisible ? 1f : 0f);
         }
 
         private void Reset()
@@ -37,6 +58,8 @@ namespace IVLab.MinVR3
             Debug.Assert(m_BrushCursorMeshRenderer != null);
             Debug.Assert(m_HandCursorTransform != null);
             Debug.Assert(m_PaintMaterial != null);
+            Debug.Assert(m_EraserMaterial != null);
+            Debug.Assert(m_EraserCursorMaterial != null);
 
             m_NumStrokes = 0;
         }
@@ -57,11 +80,14 @@ namespace IVLab.MinVR3
             GameObject frontMeshObj = new GameObject("FrontMesh", typeof(MeshFilter), typeof(MeshRenderer));
             frontMeshObj.transform.SetParent(m_CurrentStrokeObj.transform, false);
             MeshRenderer frontMeshRenderer = frontMeshObj.GetComponent<MeshRenderer>();
-            frontMeshRenderer.sharedMaterial = m_PaintMaterial;       // set shared base material
-            Material customizedMaterial = frontMeshRenderer.material; // clones base material
-            customizedMaterial.color = m_BrushColor;                  // customize the clone
-            frontMeshRenderer.sharedMaterial = customizedMaterial;    // set shared to customized
-
+            Material strokeMaterial;
+            if (m_EraserModeActive) {
+                strokeMaterial = m_EraserMaterial; // shared instance -- no per-stroke properties needed
+            } else {
+                strokeMaterial = new Material(m_PaintMaterial);
+                strokeMaterial.color = m_BrushColor;
+            }
+            frontMeshRenderer.sharedMaterial = strokeMaterial;
             m_CurrentStrokeFrontMesh = frontMeshRenderer.GetComponent<MeshFilter>().mesh;
             m_CurrentStrokeFrontMesh.MarkDynamic();
             m_CurrentStrokeFrontVertices = new List<Vector3>();
@@ -70,7 +96,7 @@ namespace IVLab.MinVR3
             GameObject backMeshObj = new GameObject("BackMesh", typeof(MeshFilter), typeof(MeshRenderer));
             backMeshObj.transform.SetParent(m_CurrentStrokeObj.transform, false);
             MeshRenderer backMeshRenderer = backMeshObj.GetComponent<MeshRenderer>();
-            backMeshRenderer.sharedMaterial = customizedMaterial;
+            backMeshRenderer.sharedMaterial = strokeMaterial;
             m_CurrentStrokeBackMesh = backMeshRenderer.GetComponent<MeshFilter>().mesh;
             m_CurrentStrokeBackMesh.MarkDynamic();
             m_CurrentStrokeBackVertices = new List<Vector3>();
@@ -219,11 +245,22 @@ namespace IVLab.MinVR3
         [Tooltip("The base material for the paint -- color is added to this.")]
         [SerializeField] private Material m_PaintMaterial;
 
+        [Tooltip("Depth-mask material for eraser strokes -- invisible but occludes geometry behind it.")]
+        [SerializeField] private Material m_EraserMaterial;
+
+        [Tooltip("Glow material applied to the brush cursor while in eraser mode.")]
+        [SerializeField] private Material m_EraserCursorMaterial;
+
         [Tooltip("The current brush color.")]
         [SerializeField] private Color m_BrushColor;
 
 
         // runtime only
+
+        // for eraser mode
+        private bool m_EraserModeActive = false;
+        private bool m_EraserStrokesVisible = false;
+        private Material m_SavedBrushCursorMaterial;
 
         // for painting ribbon strokes
         private int m_NumStrokes;
