@@ -125,6 +125,26 @@ namespace IVLab.MinVR3
             m_RedoStack.Clear();
         }
 
+        public void ClearArtworkUndoable()
+        {
+            ClearWandState();
+
+            var cleared = new List<GameObject>();
+            for (int i = 0; i < m_ArtworkParentTransform.childCount; i++) {
+                var child = m_ArtworkParentTransform.GetChild(i).gameObject;
+                if (child.activeSelf)
+                    cleared.Add(child);
+            }
+
+            var savedVerts = new List<Vector3>(m_PolygonVerticesLocal);
+
+            foreach (var obj in cleared)
+                obj.SetActive(false);
+            m_PolygonVerticesLocal.Clear();
+
+            PushUndo(new ClearRecord(cleared, savedVerts, m_PolygonVerticesLocal));
+        }
+
         private void Update()
         {
             if (!m_UseWand) return;
@@ -719,6 +739,34 @@ namespace IVLab.MinVR3
 
             public void Undo() { m_Before.ApplyTo(m_Target); }
             public void Redo() { m_After.ApplyTo(m_Target); }
+        }
+
+        private class ClearRecord : IUndoable
+        {
+            readonly List<GameObject> m_ClearedObjects;
+            readonly List<Vector3> m_SavedPolygonVerts;
+            readonly List<Vector3> m_SharedPolygonVerts;
+
+            internal ClearRecord(List<GameObject> cleared, List<Vector3> savedVerts, List<Vector3> sharedList)
+            {
+                m_ClearedObjects   = cleared;
+                m_SavedPolygonVerts = savedVerts;
+                m_SharedPolygonVerts = sharedList;
+            }
+
+            public void Undo()
+            {
+                foreach (var obj in m_ClearedObjects)
+                    if (obj) obj.SetActive(true);
+                m_SharedPolygonVerts.InsertRange(0, m_SavedPolygonVerts);
+            }
+
+            public void Redo()
+            {
+                foreach (var obj in m_ClearedObjects)
+                    if (obj) obj.SetActive(false);
+                m_SharedPolygonVerts.RemoveRange(0, m_SavedPolygonVerts.Count);
+            }
         }
     }
 

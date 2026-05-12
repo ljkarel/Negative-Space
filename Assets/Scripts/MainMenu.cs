@@ -1,17 +1,18 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using IVLab.MinVR3;
 
 public class MainMenu : MonoBehaviour
 {
-    public Artwork m_Artwork;
+    public MainPaintingAndReframingUI m_PaintingUI;
 
     public void OnMenuItemSelected(int itemId)
     {
         // clear artwork
         if (itemId == 0) {
-            Debug.Assert(m_Artwork != null);
-            m_Artwork.Clear();
+            Debug.Assert(m_PaintingUI != null);
+            m_PaintingUI.ClearArtworkUndoable();
         }
     }
 }
