@@ -43,7 +43,7 @@ namespace IVLab.MinVR3
             ApplyToolMode();
         }
 
-        private Material WandVisualMaterial => m_EraseMode ? m_EraserCursorMaterial : m_WandDrawMat;
+private Material WandVisualMaterial => m_EraseMode ? m_EraserCursorMaterial : m_WandDrawMat;
 
         private void ApplyToolMode()
         {
@@ -130,20 +130,28 @@ namespace IVLab.MinVR3
         {
             ClearWandState();
 
-            var cleared = new List<GameObject>();
+            var clearedPaint = new List<GameObject>();
             for (int i = 0; i < m_ArtworkParentTransform.childCount; i++) {
                 var child = m_ArtworkParentTransform.GetChild(i).gameObject;
-                if (child.activeSelf)
-                    cleared.Add(child);
+                if (child.activeSelf) clearedPaint.Add(child);
             }
 
-            var savedVerts = new List<Vector3>(m_PolygonVerticesLocal);
+            var clearedEraser = new List<GameObject>();
+            for (int i = 0; i < m_EraserParentTransform.childCount; i++) {
+                var child = m_EraserParentTransform.GetChild(i).gameObject;
+                if (child.activeSelf) clearedEraser.Add(child);
+            }
 
-            foreach (var obj in cleared)
-                obj.SetActive(false);
+            var savedPaintVerts  = new List<Vector3>(m_PolygonVerticesLocal);
+            var savedEraserVerts = new List<Vector3>(m_EraserPolygonVerticesLocal);
+
+            foreach (var obj in clearedPaint)  obj.SetActive(false);
+            foreach (var obj in clearedEraser) obj.SetActive(false);
             m_PolygonVerticesLocal.Clear();
+            m_EraserPolygonVerticesLocal.Clear();
 
-            PushUndo(new ClearRecord(cleared, savedVerts, m_PolygonVerticesLocal));
+            PushUndo(new ClearRecord(clearedPaint,  savedPaintVerts,  m_PolygonVerticesLocal,
+                                     clearedEraser, savedEraserVerts, m_EraserPolygonVerticesLocal));
         }
 
         private void Update()
@@ -161,29 +169,37 @@ namespace IVLab.MinVR3
                 m_WandPreviewLine.SetPosition(m_WandPoints.Count, tipWorld);
             }
 
-            // Find the closest existing polygon vertex within threshold.
+            // Find the closest existing polygon vertex (paint or eraser) within threshold.
             int closestVertIdx = -1;
+            bool closestFromEraser = false;
             float minDist = m_WandCloseThreshold;
             for (int i = 0; i < m_PolygonVerticesLocal.Count; i++)
             {
                 float d = Vector3.Distance(tipWorld, m_ArtworkParentTransform.TransformPoint(m_PolygonVerticesLocal[i]));
-                if (d < minDist) { minDist = d; closestVertIdx = i; }
+                if (d < minDist) { minDist = d; closestVertIdx = i; closestFromEraser = false; }
+            }
+            for (int i = 0; i < m_EraserPolygonVerticesLocal.Count; i++)
+            {
+                float d = Vector3.Distance(tipWorld, m_EraserParentTransform.TransformPoint(m_EraserPolygonVerticesLocal[i]));
+                if (d < minDist) { minDist = d; closestVertIdx = i; closestFromEraser = true; }
             }
 
             // Determine snap state. NearFirstDot takes priority when 3+ points are placed.
             WandSnapState newSnap = closestVertIdx >= 0 ? WandSnapState.NearExistingVertex : WandSnapState.None;
             int newSnapIdx = closestVertIdx;
+            bool newSnapFromEraser = closestFromEraser;
             if (m_WandPoints.Count >= 3 && Vector3.Distance(tipWorld, m_WandPoints[0]) < m_WandCloseThreshold)
             {
                 newSnap = WandSnapState.NearFirstDot;
                 newSnapIdx = -1;
+                newSnapFromEraser = false;
             }
 
-            if (newSnap == m_WandSnap && newSnapIdx == m_WandSnapVertexIdx)
+            if (newSnap == m_WandSnap && newSnapIdx == m_WandSnapVertexIdx && newSnapFromEraser == m_WandSnapFromEraser)
             {
                 // Keep snap highlight sphere in sync as artwork moves.
                 if (m_WandSnap == WandSnapState.NearExistingVertex)
-                    m_WandSnapHighlight.transform.position = m_ArtworkParentTransform.TransformPoint(m_PolygonVerticesLocal[m_WandSnapVertexIdx]);
+                    m_WandSnapHighlight.transform.position = SnapVertexWorldPos(m_WandSnapVertexIdx, m_WandSnapFromEraser);
                 return;
             }
 
@@ -195,13 +211,14 @@ namespace IVLab.MinVR3
 
             m_WandSnap = newSnap;
             m_WandSnapVertexIdx = newSnapIdx;
+            m_WandSnapFromEraser = newSnapFromEraser;
 
             // Apply new highlight.
             if (m_WandSnap == WandSnapState.NearFirstDot && m_WandDotObjects.Count > 0)
                 m_WandDotObjects[0].GetComponent<MeshRenderer>().sharedMaterial = m_WandCloseHighlightMat;
             else if (m_WandSnap == WandSnapState.NearExistingVertex)
             {
-                m_WandSnapHighlight.transform.position = m_ArtworkParentTransform.TransformPoint(m_PolygonVerticesLocal[m_WandSnapVertexIdx]);
+                m_WandSnapHighlight.transform.position = SnapVertexWorldPos(m_WandSnapVertexIdx, m_WandSnapFromEraser);
                 m_WandSnapHighlight.SetActive(true);
             }
         }
@@ -216,6 +233,7 @@ namespace IVLab.MinVR3
         private void Start()
         {
             Debug.Assert(m_ArtworkParentTransform != null);
+            Debug.Assert(m_EraserParentTransform != null);
             Debug.Assert(m_BrushCursorTransform != null);
             Debug.Assert(m_BrushCursorMeshRenderer != null);
             Debug.Assert(m_HandCursorTransform != null);
@@ -259,7 +277,7 @@ namespace IVLab.MinVR3
                         break;
 
                     case WandSnapState.NearExistingVertex:
-                        Vector3 snapPos = m_ArtworkParentTransform.TransformPoint(m_PolygonVerticesLocal[m_WandSnapVertexIdx]);
+                        Vector3 snapPos = SnapVertexWorldPos(m_WandSnapVertexIdx, m_WandSnapFromEraser);
                         if (m_WandPoints.Count >= 2)
                         {
                             // Close shape to this existing vertex.
@@ -416,6 +434,7 @@ namespace IVLab.MinVR3
         {
             ClearWandState();
             m_ArtworkSnapshotBefore = TransformSnapshot.Capture(m_ArtworkParentTransform);
+            m_EraserSnapshotBefore  = TransformSnapshot.Capture(m_EraserParentTransform);
             m_LastHandPos = m_HandCursorTransform.position;
             m_LastHandRot = m_HandCursorTransform.rotation;
         }
@@ -430,6 +449,11 @@ namespace IVLab.MinVR3
 
             m_ArtworkParentTransform.TranslateByWorldVector(deltaPosWorld);
             m_ArtworkParentTransform.RotateAroundWorldPoint(handPosWorld, deltaRotWorld);
+            if (m_EraseMode)
+            {
+                m_EraserParentTransform.TranslateByWorldVector(deltaPosWorld);
+                m_EraserParentTransform.RotateAroundWorldPoint(handPosWorld, deltaRotWorld);
+            }
 
             m_LastHandPos = handPosWorld;
             m_LastHandRot = handRotWorld;
@@ -437,7 +461,11 @@ namespace IVLab.MinVR3
 
         public void TransRotArtwork_OnExit()
         {
-            PushUndo(new TransformRecord(m_ArtworkParentTransform, m_ArtworkSnapshotBefore, TransformSnapshot.Capture(m_ArtworkParentTransform)));
+            if (m_EraseMode)
+                PushUndo(new TransformRecord(m_ArtworkParentTransform, m_ArtworkSnapshotBefore, TransformSnapshot.Capture(m_ArtworkParentTransform),
+                                             m_EraserParentTransform,  m_EraserSnapshotBefore,  TransformSnapshot.Capture(m_EraserParentTransform)));
+            else
+                PushUndo(new TransformRecord(m_ArtworkParentTransform, m_ArtworkSnapshotBefore, TransformSnapshot.Capture(m_ArtworkParentTransform)));
         }
 
 
@@ -447,6 +475,7 @@ namespace IVLab.MinVR3
         {
             ClearWandState();
             m_ArtworkSnapshotBefore = TransformSnapshot.Capture(m_ArtworkParentTransform);
+            m_EraserSnapshotBefore  = TransformSnapshot.Capture(m_EraserParentTransform);
             m_LastBrushPos = m_BrushCursorTransform.position;
         }
 
@@ -459,6 +488,8 @@ namespace IVLab.MinVR3
 
             float deltaScale = curSpan.magnitude / lastSpan.magnitude;
             m_ArtworkParentTransform.ScaleAroundWorldPoint(handPosWorld, deltaScale);
+            if (m_EraseMode)
+                m_EraserParentTransform.ScaleAroundWorldPoint(handPosWorld, deltaScale);
 
             m_LastHandPos = handPosWorld;
             m_LastBrushPos = brushPosWorld;
@@ -466,12 +497,18 @@ namespace IVLab.MinVR3
 
         public void ScaleArtwork_OnExit()
         {
-            PushUndo(new TransformRecord(m_ArtworkParentTransform, m_ArtworkSnapshotBefore, TransformSnapshot.Capture(m_ArtworkParentTransform)));
+            if (m_EraseMode)
+                PushUndo(new TransformRecord(m_ArtworkParentTransform, m_ArtworkSnapshotBefore, TransformSnapshot.Capture(m_ArtworkParentTransform),
+                                             m_EraserParentTransform,  m_EraserSnapshotBefore,  TransformSnapshot.Capture(m_EraserParentTransform)));
+            else
+                PushUndo(new TransformRecord(m_ArtworkParentTransform, m_ArtworkSnapshotBefore, TransformSnapshot.Capture(m_ArtworkParentTransform)));
         }
 
 
         [Tooltip("Parent Transform for any 3D geometry produced by painting.")]
         [SerializeField] private Transform m_ArtworkParentTransform;
+        [Tooltip("Parent Transform for eraser geometry — stays fixed when only paint is repositioned.")]
+        [SerializeField] private Transform m_EraserParentTransform;
         [Tooltip("The brush cursor mesh renderer.")]
         [SerializeField] private MeshRenderer m_BrushCursorMeshRenderer;
         [Tooltip("The transform of the brush cursor.")]
@@ -516,12 +553,14 @@ namespace IVLab.MinVR3
         private readonly List<Vector3> m_WandPoints = new List<Vector3>();
         private readonly List<GameObject> m_WandDotObjects = new List<GameObject>();
         private readonly List<Vector3> m_PolygonVerticesLocal = new List<Vector3>();
+        private readonly List<Vector3> m_EraserPolygonVerticesLocal = new List<Vector3>();
         private readonly Stack<Vector3> m_WandRedoPoints = new Stack<Vector3>();
         private LineRenderer m_WandPreviewLine;
         private Material m_WandCloseHighlightMat;
         private GameObject m_WandSnapHighlight;
         private WandSnapState m_WandSnap = WandSnapState.None;
         private int m_WandSnapVertexIdx = -1;
+        private bool m_WandSnapFromEraser = false;
 
         public bool IsWandMode => m_UseWand;
 
@@ -548,6 +587,7 @@ namespace IVLab.MinVR3
         private readonly Stack<IUndoable> m_UndoStack = new Stack<IUndoable>();
         private readonly Stack<IUndoable> m_RedoStack = new Stack<IUndoable>();
         private TransformSnapshot m_ArtworkSnapshotBefore;
+        private TransformSnapshot m_EraserSnapshotBefore;
 
 
         // ERASER WAND HELPERS
@@ -581,10 +621,16 @@ namespace IVLab.MinVR3
             m_WandPreviewLine.enabled = true;
         }
 
+        private Vector3 SnapVertexWorldPos(int idx, bool fromEraser) =>
+            fromEraser
+                ? m_EraserParentTransform.TransformPoint(m_EraserPolygonVerticesLocal[idx])
+                : m_ArtworkParentTransform.TransformPoint(m_PolygonVerticesLocal[idx]);
+
         private void CommitWandPolygon()
         {
             var polyObj = new GameObject((m_EraseMode ? "EraserPolygon " : "PaintPolygon ") + m_NumStrokes);
-            polyObj.transform.SetParent(m_ArtworkParentTransform, false);
+            Transform polyParent = m_EraseMode ? m_EraserParentTransform : m_ArtworkParentTransform;
+            polyObj.transform.SetParent(polyParent, false);
 
             Vector3[] verts = new Vector3[m_WandPoints.Count];
             for (int i = 0; i < m_WandPoints.Count; i++)
@@ -615,16 +661,17 @@ namespace IVLab.MinVR3
             BuildPolygonMesh(polyObj, "FrontMesh", verts, frontTris, polygonMat);
             BuildPolygonMesh(polyObj, "BackMesh",  verts, backTris,  polygonMat);
 
-            // Store vertices in artwork-local space so future snapping can find them.
+            // Store vertices in parent-local space so future snapping can find them.
+            var vertList = m_EraseMode ? m_EraserPolygonVerticesLocal : m_PolygonVerticesLocal;
             var addedVerts = new List<Vector3>(m_WandPoints.Count);
             foreach (var pt in m_WandPoints)
             {
-                var local = m_ArtworkParentTransform.InverseTransformPoint(pt);
+                var local = polyParent.InverseTransformPoint(pt);
                 addedVerts.Add(local);
-                m_PolygonVerticesLocal.Add(local);
+                vertList.Add(local);
             }
 
-            PushUndo(new PolygonRecord(polyObj, m_PolygonVerticesLocal, addedVerts));
+            PushUndo(new PolygonRecord(polyObj, vertList, addedVerts));
             m_NumStrokes++;
         }
 
@@ -730,43 +777,58 @@ namespace IVLab.MinVR3
         {
             readonly Transform m_Target;
             readonly TransformSnapshot m_Before, m_After;
+            readonly Transform m_Target2;
+            readonly TransformSnapshot m_Before2, m_After2;
 
-            internal TransformRecord(Transform target, TransformSnapshot before, TransformSnapshot after)
+            internal TransformRecord(Transform target, TransformSnapshot before, TransformSnapshot after,
+                                     Transform target2 = null, TransformSnapshot before2 = default, TransformSnapshot after2 = default)
             {
-                m_Target = target;
-                m_Before = before;
-                m_After  = after;
-            }
-
-            public void Undo() { m_Before.ApplyTo(m_Target); }
-            public void Redo() { m_After.ApplyTo(m_Target); }
-        }
-
-        private class ClearRecord : IUndoable
-        {
-            readonly List<GameObject> m_ClearedObjects;
-            readonly List<Vector3> m_SavedPolygonVerts;
-            readonly List<Vector3> m_SharedPolygonVerts;
-
-            internal ClearRecord(List<GameObject> cleared, List<Vector3> savedVerts, List<Vector3> sharedList)
-            {
-                m_ClearedObjects   = cleared;
-                m_SavedPolygonVerts = savedVerts;
-                m_SharedPolygonVerts = sharedList;
+                m_Target  = target;  m_Before  = before;  m_After  = after;
+                m_Target2 = target2; m_Before2 = before2; m_After2 = after2;
             }
 
             public void Undo()
             {
-                foreach (var obj in m_ClearedObjects)
-                    if (obj) obj.SetActive(true);
-                m_SharedPolygonVerts.InsertRange(0, m_SavedPolygonVerts);
+                m_Before.ApplyTo(m_Target);
+                if (m_Target2 != null) m_Before2.ApplyTo(m_Target2);
+            }
+            public void Redo()
+            {
+                m_After.ApplyTo(m_Target);
+                if (m_Target2 != null) m_After2.ApplyTo(m_Target2);
+            }
+        }
+
+        private class ClearRecord : IUndoable
+        {
+            readonly List<GameObject> m_ClearedPaint;
+            readonly List<Vector3> m_SavedPaintVerts;
+            readonly List<Vector3> m_SharedPaintVerts;
+            readonly List<GameObject> m_ClearedEraser;
+            readonly List<Vector3> m_SavedEraserVerts;
+            readonly List<Vector3> m_SharedEraserVerts;
+
+            internal ClearRecord(List<GameObject> clearedPaint,  List<Vector3> savedPaintVerts,  List<Vector3> sharedPaintVerts,
+                                  List<GameObject> clearedEraser, List<Vector3> savedEraserVerts, List<Vector3> sharedEraserVerts)
+            {
+                m_ClearedPaint = clearedPaint;  m_SavedPaintVerts  = savedPaintVerts;  m_SharedPaintVerts  = sharedPaintVerts;
+                m_ClearedEraser = clearedEraser; m_SavedEraserVerts = savedEraserVerts; m_SharedEraserVerts = sharedEraserVerts;
+            }
+
+            public void Undo()
+            {
+                foreach (var obj in m_ClearedPaint)  if (obj) obj.SetActive(true);
+                foreach (var obj in m_ClearedEraser) if (obj) obj.SetActive(true);
+                m_SharedPaintVerts.InsertRange(0, m_SavedPaintVerts);
+                m_SharedEraserVerts.InsertRange(0, m_SavedEraserVerts);
             }
 
             public void Redo()
             {
-                foreach (var obj in m_ClearedObjects)
-                    if (obj) obj.SetActive(false);
-                m_SharedPolygonVerts.RemoveRange(0, m_SavedPolygonVerts.Count);
+                foreach (var obj in m_ClearedPaint)  if (obj) obj.SetActive(false);
+                foreach (var obj in m_ClearedEraser) if (obj) obj.SetActive(false);
+                m_SharedPaintVerts.RemoveRange(0, m_SavedPaintVerts.Count);
+                m_SharedEraserVerts.RemoveRange(0, m_SavedEraserVerts.Count);
             }
         }
     }
