@@ -38,6 +38,7 @@ namespace IVLab.MinVR3
 
         public void ToggleEraseMode()
         {
+            ClearWandState();
             m_EraseMode = !m_EraseMode;
             ApplyToolMode();
         }
