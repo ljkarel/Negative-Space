@@ -308,7 +308,7 @@ private Material WandVisualMaterial => m_EraseMode ? m_EraserCursorMaterial : m_
 
             // create a new GameObject to hold the new paint stroke
             m_CurrentStrokeObj = new GameObject("Stroke " + m_NumStrokes);
-            m_CurrentStrokeObj.transform.SetParent(m_ArtworkParentTransform, false);
+            m_CurrentStrokeObj.transform.SetParent(m_EraseMode ? m_EraserParentTransform : m_ArtworkParentTransform, false);
 
             // normals can get weird when using two-sided rendering, and Unity's standard shaders do not support it.
             // but we would like to see both sides of the ribbons we paint.  so, the solution is to create two meshes
