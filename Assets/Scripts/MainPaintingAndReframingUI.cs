@@ -44,6 +44,28 @@ namespace IVLab.MinVR3
             m_EraserMaterial.SetFloat("_ShowVisible", m_EraserStrokesVisible ? 1f : 0f);
         }
 
+        public void Undo()
+        {
+            if (m_UndoStack.Count == 0) return;
+            var op = m_UndoStack.Pop();
+            op.Undo();
+            m_RedoStack.Push(op);
+        }
+
+        public void Redo()
+        {
+            if (m_RedoStack.Count == 0) return;
+            var op = m_RedoStack.Pop();
+            op.Redo();
+            m_UndoStack.Push(op);
+        }
+
+        private void PushUndo(IUndoable op)
+        {
+            m_UndoStack.Push(op);
+            m_RedoStack.Clear();
+        }
+
         private void Reset()
         {
             m_ArtworkParentTransform = null;
@@ -183,6 +205,7 @@ namespace IVLab.MinVR3
 
         public void Painting_OnExit()
         {
+            PushUndo(new StrokeRecord(m_CurrentStrokeObj));
             m_NumStrokes++;
         }
 
@@ -191,6 +214,7 @@ namespace IVLab.MinVR3
 
         public void TransRotArtwork_OnEnter()
         {
+            m_ArtworkSnapshotBefore = TransformSnapshot.Capture(m_ArtworkParentTransform);
             m_LastHandPos = m_HandCursorTransform.position;
             m_LastHandRot = m_HandCursorTransform.rotation;
         }
@@ -205,9 +229,14 @@ namespace IVLab.MinVR3
 
             m_ArtworkParentTransform.TranslateByWorldVector(deltaPosWorld);
             m_ArtworkParentTransform.RotateAroundWorldPoint(handPosWorld, deltaRotWorld);
-            
+
             m_LastHandPos = handPosWorld;
             m_LastHandRot = handRotWorld;
+        }
+
+        public void TransRotArtwork_OnExit()
+        {
+            PushUndo(new TransformRecord(m_ArtworkParentTransform, m_ArtworkSnapshotBefore, TransformSnapshot.Capture(m_ArtworkParentTransform)));
         }
 
 
@@ -215,6 +244,7 @@ namespace IVLab.MinVR3
 
         public void ScaleArtwork_OnEnter()
         {
+            m_ArtworkSnapshotBefore = TransformSnapshot.Capture(m_ArtworkParentTransform);
             m_LastBrushPos = m_BrushCursorTransform.position;
         }
 
@@ -230,6 +260,11 @@ namespace IVLab.MinVR3
 
             m_LastHandPos = handPosWorld;
             m_LastBrushPos = brushPosWorld;
+        }
+
+        public void ScaleArtwork_OnExit()
+        {
+            PushUndo(new TransformRecord(m_ArtworkParentTransform, m_ArtworkSnapshotBefore, TransformSnapshot.Capture(m_ArtworkParentTransform)));
         }
 
 
@@ -278,6 +313,64 @@ namespace IVLab.MinVR3
         private Vector3 m_LastHandPos;
         private Quaternion m_LastHandRot;
         private Vector3 m_LastBrushPos;
+
+        // for undo/redo
+        private readonly Stack<IUndoable> m_UndoStack = new Stack<IUndoable>();
+        private readonly Stack<IUndoable> m_RedoStack = new Stack<IUndoable>();
+        private TransformSnapshot m_ArtworkSnapshotBefore;
+
+
+        // UNDO/REDO TYPES
+
+        private interface IUndoable
+        {
+            void Undo();
+            void Redo();
+        }
+
+        private class StrokeRecord : IUndoable
+        {
+            readonly GameObject m_Stroke;
+            internal StrokeRecord(GameObject stroke) { m_Stroke = stroke; }
+            public void Undo() { m_Stroke.SetActive(false); }
+            public void Redo() { m_Stroke.SetActive(true); }
+        }
+
+        private struct TransformSnapshot
+        {
+            Vector3 localPosition;
+            Quaternion localRotation;
+            Vector3 localScale;
+
+            internal static TransformSnapshot Capture(Transform t) => new() {
+                localPosition = t.localPosition,
+                localRotation = t.localRotation,
+                localScale    = t.localScale
+            };
+
+            internal void ApplyTo(Transform t)
+            {
+                t.localPosition = localPosition;
+                t.localRotation = localRotation;
+                t.localScale    = localScale;
+            }
+        }
+
+        private class TransformRecord : IUndoable
+        {
+            readonly Transform m_Target;
+            readonly TransformSnapshot m_Before, m_After;
+
+            internal TransformRecord(Transform target, TransformSnapshot before, TransformSnapshot after)
+            {
+                m_Target = target;
+                m_Before = before;
+                m_After  = after;
+            }
+
+            public void Undo() { m_Before.ApplyTo(m_Target); }
+            public void Redo() { m_After.ApplyTo(m_Target); }
+        }
     }
 
 } // namespace
