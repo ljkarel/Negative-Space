@@ -14,7 +14,7 @@ Shader "Custom/EraserGlow"
 
         Blend SrcAlpha One  // Additive: adds glow light on top of existing color.
         ZWrite Off
-        ZTest Always        // Always visible so the cursor shows through scene geometry.
+        ZTest LEqual
         Cull Off
 
         Pass
