@@ -2395,6 +2395,7 @@ GameObject:
   - component: {fileID: 1132910129}
   - component: {fileID: 1132910131}
   - component: {fileID: 1132910130}
+  - component: {fileID: 1132910133}
   m_Layer: 0
   m_Name: Main Painting and Reframing UI
   m_TagString: Untagged
@@ -3134,6 +3135,55 @@ MonoBehaviour:
       m_DataTypeName: 
       m_DataTypeLocked: 0
       m_DefineNewPrototypeInEditor: 0
+--- !u!114 &1132910133
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1132910124}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c0a3e6e64665d5d43b62830f0b1f08b4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_JoystickEvent:
+    m_VRCallback:
+      m_DataTypeName: Vector2
+      m_ShowDataTypeInEditor: 0
+      m_Callback:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackInt32:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackSingle:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackVector2:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackVector3:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackVector4:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackQuaternion:
+        m_PersistentCalls:
+          m_Calls: []
+    m_EventPrototype:
+      m_EventName: UnityXR/RightHand/Primary2DAxis/Value
+      m_DataTypeName: Vector2
+      m_DataTypeLocked: 0
+      m_DefineNewPrototypeInEditor: 0
+  m_PaintingUI: {fileID: 1132910125}
+  m_WandCylinder: {fileID: 2082087030}
+  m_LengthSpeed: 1.5
+  m_RampDuration: 1.5
+  m_MaxSpeedMultiplier: 8
+  m_MinScaleY: 1
+  m_MaxScaleY: 20
 --- !u!1 &1165659880
 GameObject:
   m_ObjectHideFlags: 0

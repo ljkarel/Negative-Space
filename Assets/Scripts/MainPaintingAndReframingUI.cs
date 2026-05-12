@@ -493,6 +493,8 @@ namespace IVLab.MinVR3
         private WandSnapState m_WandSnap = WandSnapState.None;
         private int m_WandSnapVertexIdx = -1;
 
+        public bool IsWandMode => m_UseWand;
+
         public Vector3 WandTipPosition => m_WandTipTransform.position;
 
         // for painting ribbon strokes
