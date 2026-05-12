@@ -8,6 +8,7 @@ public class ToolResizeIndicator : MonoBehaviour
     [SerializeField] private Vector2 _indicatorScaleMinMax = new Vector2(0.3f, 4f);
     [SerializeField] private Transform _brushCursor;
     [SerializeField] BrushResizerUI _brushResizerUI;
+    [SerializeField] MainPaintingAndReframingUI _paintingUI;
     [SerializeField] VREventCallbackAny _handProximityClose;
     [SerializeField] VREventCallbackAny _handProximityFar;
 
@@ -34,10 +35,7 @@ public class ToolResizeIndicator : MonoBehaviour
 
     void ShowIndicator()
     {
-        // if (_brushResizerUI.IsResizingBrush)
-        // {
-        //     return;
-        // }
+        if (_paintingUI.IsWandMode) return;
         float newScale = _brushCursor.localScale.x;
         newScale = Mathf.Clamp(newScale, _indicatorScaleMinMax.x, _indicatorScaleMinMax.y);
         transform.localScale = Vector3.one * newScale;

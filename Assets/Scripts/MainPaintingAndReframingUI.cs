@@ -31,6 +31,8 @@ namespace IVLab.MinVR3
         public void ToggleWandMode()
         {
             m_UseWand = !m_UseWand;
+            if (m_BrushModeCondition != null)
+                m_BrushModeCondition.isTrue = !m_UseWand;
             ApplyToolMode();
         }
 
@@ -216,6 +218,8 @@ namespace IVLab.MinVR3
             Destroy(m_WandSnapHighlight.GetComponent<SphereCollider>());
             m_WandSnapHighlight.SetActive(false);
 
+            if (m_BrushModeCondition != null)
+                m_BrushModeCondition.isTrue = true;
             m_NumStrokes = 0;
         }
 
@@ -471,6 +475,9 @@ namespace IVLab.MinVR3
 
         [Tooltip("The current brush color.")]
         [SerializeField] private Color m_BrushColor;
+
+        [Tooltip("Condition to set false when in wand mode, for use as an FSM arc guard.")]
+        [SerializeField] private Condition m_BrushModeCondition;
 
 
         // runtime only
