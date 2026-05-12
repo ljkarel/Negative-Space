@@ -393,6 +393,7 @@ namespace IVLab.MinVR3
 
         public void TransRotArtwork_OnEnter()
         {
+            ClearWandState();
             m_ArtworkSnapshotBefore = TransformSnapshot.Capture(m_ArtworkParentTransform);
             m_LastHandPos = m_HandCursorTransform.position;
             m_LastHandRot = m_HandCursorTransform.rotation;
@@ -423,6 +424,7 @@ namespace IVLab.MinVR3
 
         public void ScaleArtwork_OnEnter()
         {
+            ClearWandState();
             m_ArtworkSnapshotBefore = TransformSnapshot.Capture(m_ArtworkParentTransform);
             m_LastBrushPos = m_BrushCursorTransform.position;
         }
