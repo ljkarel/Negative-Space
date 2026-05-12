@@ -34,6 +34,10 @@ namespace IVLab.MinVR3
             if (m_BrushModeCondition != null)
                 m_BrushModeCondition.isTrue = !m_UseWand;
             ApplyToolMode();
+            if (m_WandModeButtonIcon)
+                m_WandModeButtonIcon.sprite = m_UseWand ? m_WandModeOnSprite : m_WandModeOffSprite;
+            if (m_ResizeWandButton)
+                m_ResizeWandButton.SetActive(m_UseWand);
         }
 
         public void ToggleEraseMode()
@@ -41,6 +45,8 @@ namespace IVLab.MinVR3
             ClearWandState();
             m_EraseMode = !m_EraseMode;
             ApplyToolMode();
+            if (m_EraserModeButtonIcon)
+                m_EraserModeButtonIcon.sprite = m_EraseMode ? m_EraserModeOnSprite : m_EraserModeOffSprite;
         }
 
 private Material WandVisualMaterial => m_EraseMode ? m_EraserCursorMaterial : m_WandDrawMat;
@@ -72,6 +78,8 @@ private Material WandVisualMaterial => m_EraseMode ? m_EraserCursorMaterial : m_
         {
             m_EraserStrokesVisible = !m_EraserStrokesVisible;
             m_EraserMaterial.SetFloat("_ShowVisible", m_EraserStrokesVisible ? 1f : 0f);
+            if (m_EraserVisibilityButtonIcon)
+                m_EraserVisibilityButtonIcon.sprite = m_EraserStrokesVisible ? m_EraserVisibilityOnSprite : m_EraserVisibilityOffSprite;
         }
 
         public void Undo()
@@ -243,6 +251,7 @@ private Material WandVisualMaterial => m_EraseMode ? m_EraserCursorMaterial : m_
             Debug.Assert(m_WandMeshRenderer != null);
             Debug.Assert(m_WandTipTransform != null);
 
+            if (m_ResizeWandButton) m_ResizeWandButton.SetActive(false);
             m_SavedBrushCursorMaterial = m_BrushCursorMeshRenderer.sharedMaterial;
             m_WandDrawMat = new Material(m_SavedBrushCursorMaterial);
             m_WandDrawMat.color = m_BrushColor;
@@ -532,6 +541,30 @@ private Material WandVisualMaterial => m_EraseMode ? m_EraserCursorMaterial : m_
 
         [Tooltip("World-space radius within which the wand tip snaps to the first dot to close the shape.")]
         [SerializeField] private float m_WandCloseThreshold = 0.05f;
+
+        [Tooltip("SpriteRenderer on the eraser mode button icon.")]
+        [SerializeField] private SpriteRenderer m_EraserModeButtonIcon;
+        [Tooltip("Icon shown when eraser mode is off.")]
+        [SerializeField] private Sprite m_EraserModeOffSprite;
+        [Tooltip("Icon shown when eraser mode is on.")]
+        [SerializeField] private Sprite m_EraserModeOnSprite;
+
+        [Tooltip("SpriteRenderer on the eraser visibility toggle button icon.")]
+        [SerializeField] private SpriteRenderer m_EraserVisibilityButtonIcon;
+        [Tooltip("Icon shown when eraser strokes are hidden.")]
+        [SerializeField] private Sprite m_EraserVisibilityOffSprite;
+        [Tooltip("Icon shown when eraser strokes are visible.")]
+        [SerializeField] private Sprite m_EraserVisibilityOnSprite;
+
+        [Tooltip("Resize wand button — only shown while in wand mode.")]
+        [SerializeField] private GameObject m_ResizeWandButton;
+
+        [Tooltip("SpriteRenderer on the wand/brush toggle button icon.")]
+        [SerializeField] private SpriteRenderer m_WandModeButtonIcon;
+        [Tooltip("Icon shown when in brush mode.")]
+        [SerializeField] private Sprite m_WandModeOffSprite;
+        [Tooltip("Icon shown when in wand mode.")]
+        [SerializeField] private Sprite m_WandModeOnSprite;
 
         [Tooltip("The current brush color.")]
         [SerializeField] private Color m_BrushColor;
