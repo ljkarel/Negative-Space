@@ -1722,6 +1722,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d2f9c32ee367c49ceaac4fb7afc87a97, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  scalingEnabled: 1
   brushCursor: {fileID: 426030693}
   handCursor: {fileID: 535917661}
   minBrushScale: 0.01
@@ -2202,6 +2203,7 @@ GameObject:
   - component: {fileID: 1132910129}
   - component: {fileID: 1132910131}
   - component: {fileID: 1132910130}
+  - component: {fileID: 1132910132}
   m_Layer: 0
   m_Name: Main Painting and Reframing UI
   m_TagString: Untagged
@@ -2228,9 +2230,12 @@ MonoBehaviour:
   m_PaintMaterial: {fileID: 2100000, guid: 4c70c38b4ded945b6b1832984bcc9503, type: 2}
   m_EraserMaterial: {fileID: 2100000, guid: 1eae59a45b68dd64b8e19d0db27ad5c1, type: 2}
   m_EraserCursorMaterial: {fileID: 2100000, guid: aa43a6f67a5f5cc4ba1be5af3575dd5d, type: 2}
+  m_BrushResizerUI: {fileID: 620721665}
   m_WandMeshRenderer: {fileID: 2082087033}
   m_WandTipTransform: {fileID: 1391062536}
-  m_WandPointsPerShape: 3
+  m_WandCloseThreshold: 0.05
+  m_WandGrowSpeed: 0.3
+  m_WandMaxHalfHeight: 0.5
   m_BrushColor: {r: 1, g: 1, b: 1, a: 0}
 --- !u!4 &1132910126
 Transform:
@@ -2885,6 +2890,60 @@ MonoBehaviour:
     m_EventPrototype:
       m_EventName: UnityXR/LeftHand/Grip/Down
       m_DataTypeName: 
+      m_DataTypeLocked: 0
+      m_DefineNewPrototypeInEditor: 0
+--- !u!114 &1132910132
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1132910124}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fcc88d302b1a0486dbdf6aae4e637244, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_OnVREvent:
+    m_VRCallback:
+      m_DataTypeName: Vector2
+      m_ShowDataTypeInEditor: 0
+      m_Callback:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackInt32:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackSingle:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackVector2:
+        m_PersistentCalls:
+          m_Calls:
+          - m_Target: {fileID: 1132910125}
+            m_TargetAssemblyTypeName: IVLab.MinVR3.MainPaintingAndReframingUI, Assembly-CSharp
+            m_MethodName: WandLengthAxis
+            m_Mode: 0
+            m_Arguments:
+              m_ObjectArgument: {fileID: 0}
+              m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+              m_IntArgument: 0
+              m_FloatArgument: 0
+              m_StringArgument: 
+              m_BoolArgument: 0
+            m_CallState: 2
+      m_CallbackVector3:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackVector4:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackQuaternion:
+        m_PersistentCalls:
+          m_Calls: []
+    m_EventPrototype:
+      m_EventName: UnityXR/RightHand/Primary2DAxis/Value
+      m_DataTypeName: Vector2
       m_DataTypeLocked: 0
       m_DefineNewPrototypeInEditor: 0
 --- !u!1 &1165659880

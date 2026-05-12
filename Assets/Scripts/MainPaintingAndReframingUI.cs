@@ -64,6 +64,28 @@ namespace IVLab.MinVR3
 
         public void Undo()
         {
+            if (m_CurrentTool == ToolMode.EraserWand && m_WandPoints.Count > 0)
+            {
+                // Tear down snap highlight so Update() recomputes fresh next frame.
+                if (m_WandSnap == WandSnapState.NearFirstDot && m_WandDotObjects.Count > 0)
+                    m_WandDotObjects[0].GetComponent<MeshRenderer>().sharedMaterial = m_EraserCursorMaterial;
+                else if (m_WandSnap == WandSnapState.NearExistingVertex)
+                    m_WandSnapHighlight.SetActive(false);
+                m_WandSnap = WandSnapState.None;
+                m_WandSnapVertexIdx = -1;
+
+                Vector3 removedPos = m_WandPoints[m_WandPoints.Count - 1];
+                m_WandPoints.RemoveAt(m_WandPoints.Count - 1);
+                Destroy(m_WandDotObjects[m_WandDotObjects.Count - 1]);
+                m_WandDotObjects.RemoveAt(m_WandDotObjects.Count - 1);
+                m_WandRedoPoints.Push(removedPos);
+
+                if (m_WandPoints.Count == 0 && m_WandPreviewLine is not null)
+                    m_WandPreviewLine.enabled = false;
+                return;
+            }
+            // Moving to the main undo stack — discard wand dot redo history.
+            m_WandRedoPoints.Clear();
             if (m_UndoStack.Count == 0) return;
             var op = m_UndoStack.Pop();
             op.Undo();
@@ -72,6 +94,14 @@ namespace IVLab.MinVR3
 
         public void Redo()
         {
+            if (m_CurrentTool == ToolMode.EraserWand && m_WandRedoPoints.Count > 0)
+            {
+                Vector3 pos = m_WandRedoPoints.Pop();
+                m_WandPoints.Add(pos);
+                PlaceWandDot(pos);
+                EnsureWandPreviewLine();
+                return;
+            }
             if (m_RedoStack.Count == 0) return;
             var op = m_RedoStack.Pop();
             op.Redo();
@@ -204,6 +234,7 @@ namespace IVLab.MinVR3
                         else
                         {
                             // Start a new shape anchored at this existing vertex.
+                            m_WandRedoPoints.Clear();
                             m_WandPoints.Add(snapPos);
                             PlaceWandDot(snapPos);
                             EnsureWandPreviewLine();
@@ -211,6 +242,8 @@ namespace IVLab.MinVR3
                         break;
 
                     default:
+                        m_WandRedoPoints.Clear();
+                        if (m_WandPoints.Count == 0) m_RedoStack.Clear();
                         m_WandPoints.Add(m_WandTipTransform.position);
                         PlaceWandDot(m_WandTipTransform.position);
                         EnsureWandPreviewLine();
@@ -440,6 +473,7 @@ namespace IVLab.MinVR3
         private readonly List<Vector3> m_WandPoints = new List<Vector3>();
         private readonly List<GameObject> m_WandDotObjects = new List<GameObject>();
         private readonly List<Vector3> m_PolygonVerticesLocal = new List<Vector3>();
+        private readonly Stack<Vector3> m_WandRedoPoints = new Stack<Vector3>();
         private LineRenderer m_WandPreviewLine;
         private Material m_WandCloseHighlightMat;
         private GameObject m_WandSnapHighlight;
@@ -555,6 +589,7 @@ namespace IVLab.MinVR3
 
         private void ClearWandState()
         {
+            m_WandRedoPoints.Clear();
             if (m_WandSnap == WandSnapState.NearFirstDot && m_WandDotObjects.Count > 0)
                 m_WandDotObjects[0].GetComponent<MeshRenderer>().sharedMaterial = m_EraserCursorMaterial;
             else if (m_WandSnap == WandSnapState.NearExistingVertex && m_WandSnapHighlight != null)
