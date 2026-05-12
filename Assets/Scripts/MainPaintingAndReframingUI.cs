@@ -86,26 +86,61 @@ namespace IVLab.MinVR3
 
         private void Update()
         {
-            if (m_CurrentTool != ToolMode.EraserWand || m_WandPoints.Count == 0) return;
+            if (m_CurrentTool != ToolMode.EraserWand) return;
+
+            Vector3 tipWorld = m_WandTipTransform.position;
 
             // Keep the preview line showing the full outline so far, plus a live edge to the tip.
-            if (m_WandPreviewLine is not null)
+            if (m_WandPreviewLine is not null && m_WandPoints.Count > 0)
             {
                 m_WandPreviewLine.positionCount = m_WandPoints.Count + 1;
                 for (int i = 0; i < m_WandPoints.Count; i++)
                     m_WandPreviewLine.SetPosition(i, m_WandPoints[i]);
-                m_WandPreviewLine.SetPosition(m_WandPoints.Count, m_WandTipTransform.position);
+                m_WandPreviewLine.SetPosition(m_WandPoints.Count, tipWorld);
             }
 
-            // Once 2+ dots are placed, check if the tip is near the first dot to allow closing.
-            bool nearClose = m_WandPoints.Count >= 2 &&
-                Vector3.Distance(m_WandTipTransform.position, m_WandPoints[0]) < m_WandCloseThreshold;
-
-            if (nearClose != m_WandNearClose)
+            // Find the closest existing polygon vertex within threshold.
+            int closestVertIdx = -1;
+            float minDist = m_WandCloseThreshold;
+            for (int i = 0; i < m_PolygonVerticesLocal.Count; i++)
             {
-                m_WandNearClose = nearClose;
-                m_WandDotObjects[0].GetComponent<MeshRenderer>().sharedMaterial =
-                    m_WandNearClose ? m_WandCloseHighlightMat : m_EraserCursorMaterial;
+                float d = Vector3.Distance(tipWorld, m_ArtworkParentTransform.TransformPoint(m_PolygonVerticesLocal[i]));
+                if (d < minDist) { minDist = d; closestVertIdx = i; }
+            }
+
+            // Determine snap state. NearFirstDot takes priority when 3+ points are placed.
+            WandSnapState newSnap = closestVertIdx >= 0 ? WandSnapState.NearExistingVertex : WandSnapState.None;
+            int newSnapIdx = closestVertIdx;
+            if (m_WandPoints.Count >= 3 && Vector3.Distance(tipWorld, m_WandPoints[0]) < m_WandCloseThreshold)
+            {
+                newSnap = WandSnapState.NearFirstDot;
+                newSnapIdx = -1;
+            }
+
+            if (newSnap == m_WandSnap && newSnapIdx == m_WandSnapVertexIdx)
+            {
+                // Keep snap highlight sphere in sync as artwork moves.
+                if (m_WandSnap == WandSnapState.NearExistingVertex)
+                    m_WandSnapHighlight.transform.position = m_ArtworkParentTransform.TransformPoint(m_PolygonVerticesLocal[m_WandSnapVertexIdx]);
+                return;
+            }
+
+            // Tear down old highlight.
+            if (m_WandSnap == WandSnapState.NearFirstDot && m_WandDotObjects.Count > 0)
+                m_WandDotObjects[0].GetComponent<MeshRenderer>().sharedMaterial = m_EraserCursorMaterial;
+            else if (m_WandSnap == WandSnapState.NearExistingVertex)
+                m_WandSnapHighlight.SetActive(false);
+
+            m_WandSnap = newSnap;
+            m_WandSnapVertexIdx = newSnapIdx;
+
+            // Apply new highlight.
+            if (m_WandSnap == WandSnapState.NearFirstDot && m_WandDotObjects.Count > 0)
+                m_WandDotObjects[0].GetComponent<MeshRenderer>().sharedMaterial = m_WandCloseHighlightMat;
+            else if (m_WandSnap == WandSnapState.NearExistingVertex)
+            {
+                m_WandSnapHighlight.transform.position = m_ArtworkParentTransform.TransformPoint(m_PolygonVerticesLocal[m_WandSnapVertexIdx]);
+                m_WandSnapHighlight.SetActive(true);
             }
         }
 
@@ -133,6 +168,13 @@ namespace IVLab.MinVR3
             m_WandMeshRenderer.enabled = false;
             m_WandCloseHighlightMat = new Material(m_EraserCursorMaterial);
             m_WandCloseHighlightMat.SetColor("_GlowColor", Color.white);
+
+            m_WandSnapHighlight = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            m_WandSnapHighlight.transform.localScale = Vector3.one * 0.025f;
+            m_WandSnapHighlight.GetComponent<MeshRenderer>().sharedMaterial = m_WandCloseHighlightMat;
+            Destroy(m_WandSnapHighlight.GetComponent<SphereCollider>());
+            m_WandSnapHighlight.SetActive(false);
+
             m_NumStrokes = 0;
         }
 
@@ -143,16 +185,36 @@ namespace IVLab.MinVR3
         {
             if (m_CurrentTool == ToolMode.EraserWand)
             {
-                if (m_WandNearClose)
+                switch (m_WandSnap)
                 {
-                    CreateEraserPolygon();
-                    ClearWandState();
-                }
-                else
-                {
-                    m_WandPoints.Add(m_WandTipTransform.position);
-                    PlaceWandDot(m_WandTipTransform.position);
-                    EnsureWandPreviewLine();
+                    case WandSnapState.NearFirstDot:
+                        CreateEraserPolygon();
+                        ClearWandState();
+                        break;
+
+                    case WandSnapState.NearExistingVertex:
+                        Vector3 snapPos = m_ArtworkParentTransform.TransformPoint(m_PolygonVerticesLocal[m_WandSnapVertexIdx]);
+                        if (m_WandPoints.Count >= 2)
+                        {
+                            // Close shape to this existing vertex.
+                            m_WandPoints.Add(snapPos);
+                            CreateEraserPolygon();
+                            ClearWandState();
+                        }
+                        else
+                        {
+                            // Start a new shape anchored at this existing vertex.
+                            m_WandPoints.Add(snapPos);
+                            PlaceWandDot(snapPos);
+                            EnsureWandPreviewLine();
+                        }
+                        break;
+
+                    default:
+                        m_WandPoints.Add(m_WandTipTransform.position);
+                        PlaceWandDot(m_WandTipTransform.position);
+                        EnsureWandPreviewLine();
+                        break;
                 }
                 return;
             }
@@ -377,9 +439,12 @@ namespace IVLab.MinVR3
         // for eraser wand
         private readonly List<Vector3> m_WandPoints = new List<Vector3>();
         private readonly List<GameObject> m_WandDotObjects = new List<GameObject>();
+        private readonly List<Vector3> m_PolygonVerticesLocal = new List<Vector3>();
         private LineRenderer m_WandPreviewLine;
         private Material m_WandCloseHighlightMat;
-        private bool m_WandNearClose = false;
+        private GameObject m_WandSnapHighlight;
+        private WandSnapState m_WandSnap = WandSnapState.None;
+        private int m_WandSnapVertexIdx = -1;
 
         public Vector3 WandTipPosition => m_WandTipTransform.position;
 
@@ -463,7 +528,16 @@ namespace IVLab.MinVR3
             BuildPolygonMesh(polyObj, "FrontMesh", verts, frontTris);
             BuildPolygonMesh(polyObj, "BackMesh",  verts, backTris);
 
-            PushUndo(new StrokeRecord(polyObj));
+            // Store vertices in artwork-local space so future snapping can find them.
+            var addedVerts = new List<Vector3>(m_WandPoints.Count);
+            foreach (var pt in m_WandPoints)
+            {
+                var local = m_ArtworkParentTransform.InverseTransformPoint(pt);
+                addedVerts.Add(local);
+                m_PolygonVerticesLocal.Add(local);
+            }
+
+            PushUndo(new PolygonRecord(polyObj, m_PolygonVerticesLocal, addedVerts));
             m_NumStrokes++;
         }
 
@@ -481,7 +555,13 @@ namespace IVLab.MinVR3
 
         private void ClearWandState()
         {
-            m_WandNearClose = false;
+            if (m_WandSnap == WandSnapState.NearFirstDot && m_WandDotObjects.Count > 0)
+                m_WandDotObjects[0].GetComponent<MeshRenderer>().sharedMaterial = m_EraserCursorMaterial;
+            else if (m_WandSnap == WandSnapState.NearExistingVertex && m_WandSnapHighlight != null)
+                m_WandSnapHighlight.SetActive(false);
+
+            m_WandSnap = WandSnapState.None;
+            m_WandSnapVertexIdx = -1;
             m_WandPoints.Clear();
             foreach (var dot in m_WandDotObjects)
                 Destroy(dot);
@@ -494,6 +574,8 @@ namespace IVLab.MinVR3
         // TYPES
 
         private enum ToolMode { Paint, Eraser, EraserWand }
+
+        private enum WandSnapState { None, NearFirstDot, NearExistingVertex }
 
 
         // UNDO/REDO TYPES
@@ -510,6 +592,32 @@ namespace IVLab.MinVR3
             internal StrokeRecord(GameObject stroke) { m_Stroke = stroke; }
             public void Undo() { m_Stroke.SetActive(false); }
             public void Redo() { m_Stroke.SetActive(true); }
+        }
+
+        private class PolygonRecord : IUndoable
+        {
+            readonly GameObject m_Polygon;
+            readonly List<Vector3> m_SharedList;
+            readonly List<Vector3> m_AddedVerts;
+
+            internal PolygonRecord(GameObject polygon, List<Vector3> sharedList, List<Vector3> addedVerts)
+            {
+                m_Polygon    = polygon;
+                m_SharedList = sharedList;
+                m_AddedVerts = addedVerts;
+            }
+
+            public void Undo()
+            {
+                m_Polygon.SetActive(false);
+                m_SharedList.RemoveRange(m_SharedList.Count - m_AddedVerts.Count, m_AddedVerts.Count);
+            }
+
+            public void Redo()
+            {
+                m_Polygon.SetActive(true);
+                m_SharedList.AddRange(m_AddedVerts);
+            }
         }
 
         private struct TransformSnapshot
