@@ -2342,6 +2342,7 @@ GameObject:
   - component: {fileID: 1132910131}
   - component: {fileID: 1132910130}
   - component: {fileID: 1132910133}
+  - component: {fileID: 1132910134}
   m_Layer: 0
   m_Name: Main Painting and Reframing UI
   m_TagString: Untagged
@@ -2379,6 +2380,7 @@ MonoBehaviour:
   m_EraserVisibilityOffSprite: {fileID: 21300000, guid: 57e4e80d8b317b446ba688ddd3d7992f, type: 3}
   m_EraserVisibilityOnSprite: {fileID: 21300000, guid: 096835a3d3eb6d94ea53be58ecab51a6, type: 3}
   m_ResizeWandButton: {fileID: 1964122951}
+  m_GripHoldClear: {fileID: 1132910134}
   m_WandModeButtonIcon: {fileID: 1713461653}
   m_WandModeOffSprite: {fileID: 21300000, guid: ec39fc45ee0d49649863191cdffb7883, type: 3}
   m_WandModeOnSprite: {fileID: 21300000, guid: 2420bb39fcd51ed4dabfa6c3e274437c, type: 3}
@@ -2981,7 +2983,7 @@ MonoBehaviour:
         m_PersistentCalls:
           m_Calls: []
     m_EventPrototype:
-      m_EventName: UnityXR/RightHand/Grip/Down
+      m_EventName: UnityXR/RightHand/Grip/Up
       m_DataTypeName: 
       m_DataTypeLocked: 0
       m_DefineNewPrototypeInEditor: 0
@@ -3035,7 +3037,7 @@ MonoBehaviour:
         m_PersistentCalls:
           m_Calls: []
     m_EventPrototype:
-      m_EventName: UnityXR/LeftHand/Grip/Down
+      m_EventName: UnityXR/LeftHand/Grip/Up
       m_DataTypeName: 
       m_DataTypeLocked: 0
       m_DefineNewPrototypeInEditor: 0
@@ -3142,6 +3144,80 @@ MonoBehaviour:
   m_MaxSpeedMultiplier: 8
   m_MinScaleY: 1
   m_MaxScaleY: 20
+--- !u!114 &1132910134
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1132910124}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: decaff393134bf740ae9920b91dd737b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_LeftGripEvent:
+    m_VRCallback:
+      m_DataTypeName: Single
+      m_ShowDataTypeInEditor: 0
+      m_Callback:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackInt32:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackSingle:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackVector2:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackVector3:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackVector4:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackQuaternion:
+        m_PersistentCalls:
+          m_Calls: []
+    m_EventPrototype:
+      m_EventName: UnityXR/LeftHand/Grip/Value
+      m_DataTypeName: Single
+      m_DataTypeLocked: 0
+      m_DefineNewPrototypeInEditor: 0
+  m_RightGripEvent:
+    m_VRCallback:
+      m_DataTypeName: Single
+      m_ShowDataTypeInEditor: 0
+      m_Callback:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackInt32:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackSingle:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackVector2:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackVector3:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackVector4:
+        m_PersistentCalls:
+          m_Calls: []
+      m_CallbackQuaternion:
+        m_PersistentCalls:
+          m_Calls: []
+    m_EventPrototype:
+      m_EventName: UnityXR/RightHand/Grip/Value
+      m_DataTypeName: Single
+      m_DataTypeLocked: 0
+      m_DefineNewPrototypeInEditor: 0
+  m_PaintingUI: {fileID: 1132910125}
+  m_HoldDuration: 3
 --- !u!1 &1165659880
 GameObject:
   m_ObjectHideFlags: 0
@@ -5773,7 +5849,7 @@ Transform:
   m_GameObject: {fileID: 1964122951}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 0.028, y: 0.0327, z: -0.0029}
+  m_LocalPosition: {x: 0.0254, y: 0.0315, z: -0.0029}
   m_LocalScale: {x: 0.013, y: 0.001, z: 0.013}
   m_ConstrainProportionsScale: 0
   m_Children:
